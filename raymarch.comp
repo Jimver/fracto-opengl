@@ -107,8 +107,9 @@ float sdf(vec3 p)
 {
     // All sd functions must be inside the min
     float res = min(
-    sdMandelBulb(p, mandelBulbIterations, mandelBulbBailout, mandelBulbPower),
-    10000
+//    sdMandelBulb(p, mandelBulbIterations, mandelBulbBailout, mandelBulbPower),
+    10000,
+    sdSphere(p, vec3(0.0, 0.0, 0.0), 0.1)
 //    sdMandelBox(p, mandelBoxIterations, mandelBoxScale, mandelBoxBailout, mandelBoxFoldingLimit, mandelBoxMinRadius, mandelBoxFixedRadius)
     );
     return res;

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.6)   # CMake version check
-project(antons_tutorials C CXX)               # Create project "simple_example"
+project(compute)               # Create project "simple_example"
 set(CMAKE_CXX_STANDARD 11)            # Enable c++11 standard
 
 #add source folder so the program can be compiled at build folder
@@ -18,14 +18,11 @@ add_executable(compute ${SOURCE_FILES} ${HEADERS})
 #Shaders
 configure_file(raymarch.comp raymarch.comp COPYONLY)
 
-
 #OpenGL
 set(OpenGL_GL_PREFERENCE LEGACY)
 find_package(OpenGL REQUIRED)
 include_directories(${OPENGL_INCLUDE_DIR})
-
 target_link_libraries(compute ${OPENGL_gl_LIBRARY})
-
 
 #GLFW
 find_package(PkgConfig REQUIRED)

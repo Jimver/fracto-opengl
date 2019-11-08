@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iostream>
 #include <cstring>
+#include <chrono>
 #include "gl_utils.h"
 
 // Reader for shaders
@@ -44,76 +45,91 @@ double clockToMilliseconds(clock_t ticks){
     return (ticks/(double)CLOCKS_PER_SEC)*1000.0;
 }
 
-int main() {
-	( start_gl() ); // just starts a 4.3 GL context+window
+void processInput()
+{
 
-	// set up shaders and geometry for full-screen quad
-	// moved code to gl_utils.cpp
-	GLuint quad_vao = create_quad_vao();
-	GLuint quad_program = create_quad_program();
+}
 
-	// Get compute shader
+
+auto startTime = std::chrono::high_resolution_clock::now();;
+unsigned int frames = 0;
+
+int main()
+{
+    (start_gl()); // just starts a 4.3 GL context+window
+
+    // set up shaders and geometry for full-screen quad
+    // moved code to gl_utils.cpp
+    GLuint quad_vao = create_quad_vao();
+    GLuint quad_program = create_quad_program();
+
+    // Get compute shader
     std::string s = readFile("raymarch.comp");
-	const char *compute_shader = s.c_str();
+    const char *compute_shader = s.c_str();
 
-	GLuint ray_program = 0;
+    GLuint ray_program = 0;
     // create the compute shader
-	GLuint ray_shader = glCreateShader( GL_COMPUTE_SHADER );
-	{
-		glShaderSource( ray_shader, 1, &compute_shader, nullptr );
-		glCompileShader( ray_shader );
-		( check_shader_errors( ray_shader ) ); // code moved to gl_utils.cpp
-		ray_program = glCreateProgram();
-		glAttachShader( ray_program, ray_shader );
-		glLinkProgram( ray_program );
-		( check_program_errors( ray_program ) ); // code moved to gl_utils.cpp
-	}
+    GLuint ray_shader = glCreateShader( GL_COMPUTE_SHADER );
+    {
+        glShaderSource( ray_shader, 1, &compute_shader, nullptr );
+        glCompileShader( ray_shader );
+        ( check_shader_errors( ray_shader ) ); // code moved to gl_utils.cpp
+        ray_program = glCreateProgram();
+        glAttachShader( ray_program, ray_shader );
+        glLinkProgram( ray_program );
+        ( check_program_errors( ray_program ) ); // code moved to gl_utils.cpp
+    }
 
-	// texture handle and dimensions
-	GLuint tex_output = 0;
-	int tex_w = WINDOW_W, tex_h = WINDOW_H;
-	{ // create the texture
-		glGenTextures( 1, &tex_output );
-		glActiveTexture( GL_TEXTURE0 );
-		glBindTexture( GL_TEXTURE_2D, tex_output );
-		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
-		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
-		// linear allows us to scale the window up retaining reasonable quality
-		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-		// same internal format as compute shader input
-		glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA32F, tex_w, tex_h, 0, GL_RGBA, GL_FLOAT,
-									nullptr );
-		// bind to image unit so can write to specific pixels from the shader
-		glBindImageTexture( 0, tex_output, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F );
-	}
+    // texture handle and dimensions
+    GLuint tex_output = 0;
+    int tex_w = WINDOW_W, tex_h = WINDOW_H;
+    { // create the texture
+        glGenTextures( 1, &tex_output );
+        glActiveTexture( GL_TEXTURE0 );
+        glBindTexture( GL_TEXTURE_2D, tex_output );
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
+        // linear allows us to scale the window up retaining reasonable quality
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+        // same internal format as compute shader input
+        glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA32F, tex_w, tex_h, 0, GL_RGBA, GL_FLOAT,
+                      nullptr );
+        // bind to image unit so can write to specific pixels from the shader
+        glBindImageTexture( 0, tex_output, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F );
+    }
 
-	{ // query up the workgroups
-		int work_grp_size[3], work_grp_inv;
-		// maximum global work group (total work in a dispatch)
-		glGetIntegeri_v( GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &work_grp_size[0] );
-		glGetIntegeri_v( GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, &work_grp_size[1] );
-		glGetIntegeri_v( GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, &work_grp_size[2] );
-		printf( "max global (total) work group size x:%i y:%i z:%i\n", work_grp_size[0],
-						work_grp_size[1], work_grp_size[2] );
-		// maximum local work group (one shader's slice)
-		glGetIntegeri_v( GL_MAX_COMPUTE_WORK_GROUP_SIZE, 0, &work_grp_size[0] );
-		glGetIntegeri_v( GL_MAX_COMPUTE_WORK_GROUP_SIZE, 1, &work_grp_size[1] );
-		glGetIntegeri_v( GL_MAX_COMPUTE_WORK_GROUP_SIZE, 2, &work_grp_size[2] );
-		printf( "max local (in one shader) work group sizes x:%i y:%i z:%i\n",
-						work_grp_size[0], work_grp_size[1], work_grp_size[2] );
-		// maximum compute shader invocations (x * y * z)
-		glGetIntegerv( GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS, &work_grp_inv );
-		printf( "max computer shader invocations %i\n", work_grp_inv );
-	}
+    { // query up the workgroups
+        int work_grp_size[3], work_grp_inv;
+        // maximum global work group (total work in a dispatch)
+        glGetIntegeri_v( GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &work_grp_size[0] );
+        glGetIntegeri_v( GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, &work_grp_size[1] );
+        glGetIntegeri_v( GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, &work_grp_size[2] );
+        printf( "max global (total) work group size x:%i y:%i z:%i\n", work_grp_size[0],
+                work_grp_size[1], work_grp_size[2] );
+        // maximum local work group (one shader's slice)
+        glGetIntegeri_v( GL_MAX_COMPUTE_WORK_GROUP_SIZE, 0, &work_grp_size[0] );
+        glGetIntegeri_v( GL_MAX_COMPUTE_WORK_GROUP_SIZE, 1, &work_grp_size[1] );
+        glGetIntegeri_v( GL_MAX_COMPUTE_WORK_GROUP_SIZE, 2, &work_grp_size[2] );
+        printf( "max local (in one shader) work group sizes x:%i y:%i z:%i\n",
+                work_grp_size[0], work_grp_size[1], work_grp_size[2] );
+        // maximum compute shader invocations (x * y * z)
+        glGetIntegerv( GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS, &work_grp_inv );
+        printf( "max computer shader invocations %i\n", work_grp_inv );
+    }
 
-    clock_t deltaTime = 0;
-    unsigned int frames = 0;
-    double frameRate = 30;
-    double averageFrameTimeMilliseconds = 0;
+    startTime = std::chrono::high_resolution_clock::now();
+    while ( !glfwWindowShouldClose( window ) ) { // drawing loop
+        auto beginFrame = std::chrono::high_resolution_clock::now();
 
-	while ( !glfwWindowShouldClose( window ) ) { // drawing loop
-        clock_t beginFrame = clock();
+        // Input stuff
+        int state = glfwGetKey(window, GLFW_KEY_E);
+        if (state == GLFW_PRESS)
+        {
+            std::cout << "E" << std::endl;
+        }
+
+        // Rendering
 		{
 		    // Use ray program
 			glUseProgram( ray_program );
@@ -143,19 +159,28 @@ int main() {
 		}
 		glfwSwapBuffers( window );
 
-        clock_t endFrame = clock();
-        deltaTime += endFrame - beginFrame;
-        std::cout << endFrame - beginFrame << std::endl;
-        frames ++;
-        //if you really want FPS
-        if( clockToMilliseconds(deltaTime)>1000.0){ //every second
-            frameRate = (double)frames*0.5 +  frameRate*0.5; //more stable
-            frames = 0;
-            deltaTime -= CLOCKS_PER_SEC;
-            averageFrameTimeMilliseconds  = 1000.0/(frameRate==0?0.001:frameRate);
-
-            std::cout << "FrameTime was:" << averageFrameTimeMilliseconds << std::endl;
+		// End time of frame
+        auto endFrame = std::chrono::high_resolution_clock::now();;
+        frames++;
+//        std::cout << endFrame - beginFrame << std::endl;
+        if (frames%10 == 0)
+        {
+            double seconds = std::chrono::duration_cast<std::chrono::seconds>(endFrame - startTime).count();
+            double fps = frames / seconds;
+            std::cout << "Seconds: " << seconds << std::endl;
+            std::cout << "FPS: " << fps << std::endl;
         }
+//        deltaTime += endFrame - beginFrame;
+//        frames ++;
+//        //if you really want FPS
+//        if( clockToMilliseconds(deltaTime)>1000.0){ //every second
+//            frameRate = (double)frames*0.5 +  frameRate*0.5; //more stable
+//            frames = 0;
+//            deltaTime -= CLOCKS_PER_SEC;
+//            averageFrameTimeMilliseconds  = 1000.0/(frameRate==0?0.001:frameRate);
+//
+//            std::cout << "FrameTime was:" << averageFrameTimeMilliseconds << std::endl;
+//        }
 	}
 
 	stop_gl(); // stop glfw, close window
